@@ -1,0 +1,14 @@
+- hosts: all
+  sudo: yes
+  vars:
+    java_version: 7u67
+    download_url: "http://download.oracle.com/otn-pub/java/jdk/7u67-b01/jdk-{{java_version}}-linux-x64.rpm"
+    download_folder: /tmp
+    download_name: "{{download_folder}}/jdk{{java_version}}.rpm"
+ 
+  tasks:
+    - name: Download Java
+      command: "wget -q -O {{download_name}} --no-check-certificate --no-cookies --header 'Cookie: oraclelicense=accept-securebackup-cookie' {{download_url}} creates={{download_name}}"
+  
+    - name: Install Java
+      yum: name="{{download_name}}" state=present
