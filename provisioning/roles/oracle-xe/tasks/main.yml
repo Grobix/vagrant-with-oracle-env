@@ -1,0 +1,49 @@
+---
+
+  - name: Create swap space
+    command: dd if=/dev/zero of=/extraswap bs=1024 count=2000000 creates=/extraswap
+  - name: Stop Swap
+    command: swapoff -a
+  - name: Set Swapfile permission
+    file: path=/extraswap owner=root group=root mode=0600
+  - name: Make swap
+    command: mkswap /extraswap
+  - name: Add to fstab
+    action: lineinfile dest=/etc/fstab regexp="extraswap" line="/extraswap none swap sw 0 0" state=present
+  - name: Turn swap on
+    command: swapon -a
+  - name: Set swapiness
+    shell: echo 0 | sudo tee /proc/sys/vm/swappiness
+
+  - name: ensure packages required are installed
+    yum: pkg={{ item }} state=latest
+    with_items:
+      - libaio
+      - bc
+      - flex
+      - unzip
+
+  - name: Copy files
+    copy: src=./ dest=/tmp/
+
+  - name: unzip oracle rpm
+    command: /usr/bin/unzip -q "{{oracle_xe_file}}" -d /tmp/ creates=/tmp/Disk1
+  - name: install oracle
+    shell: /bin/rpm -ivh /tmp/Disk1/oracle-xe-11.2.0-1.0.x86_64.rpm creates=/u01
+  - name: configure oracle
+    shell: /etc/init.d/oracle-xe configure responseFile=/tmp/xe.rsp 
+    ignore_errors: True
+  - name: setup oracle environment
+    shell: /bin/echo 'source /u01/app/oracle/product/11.2.0/xe/bin/oracle_env.sh' >> /home/vagrant/.bash_profile
+
+  - name: set oracle listener
+    sudo: False
+    shell: sh /tmp/runsqlstatement.sh /tmp/set_listener.sql
+  - name: Create dbuser
+    shell: sh /tmp/runsqlstatement.sh /tmp/createuser.sql
+  - name: Open ports on firewall
+    sudo: true
+    firewalld: port=8080/tcp permanent=true state=enabled
+    firewalld: port=1521/tcp permanent=true state=enabled
+  - name: Restart firewall
+    service: name=firewalld state=restarted
